@@ -4,6 +4,9 @@
 [![PHP Compatibility](https://img.shields.io/badge/php-%3E%3D%207.4-8892bf.svg?style=flat-square)](https://www.php.net/releases/7_4_0.php)
 [![License](https://img.shields.io/github/license/azhar-py/openroute-ai-php-sdk?style=flat-square)](LICENSE)
 
+> [!NOTE]
+> This is an **unofficial** PHP SDK for the [OpenRouter AI API](https://openrouter.ai/). It is not officially maintained, endorsed, or affiliated with OpenRouter.
+
 A clean, light-weight, and highly reusable PHP SDK for the OpenRouter AI API. This package works in any PHP project (PHP >= 7.4) and integrates using Composer to provide immediate access to LLMs from OpenAI, Anthropic, Google, DeepSeek, Llama, and more.
 
 ---
@@ -15,6 +18,19 @@ A clean, light-weight, and highly reusable PHP SDK for the OpenRouter AI API. Th
 - **Agent Orchestrator (`AgentManager`)**: Easily register, manage, and execute multiple custom agents in your workflow.
 - **Robust Exception Mapping**: Captures HTTP status codes and wraps API errors into clear `OpenRouterException` instances.
 - **CLI Tool Support**: Integrated shell console helper to test, ask, or list models from your terminal.
+
+---
+
+## Getting Started with OpenRouter
+
+To use this SDK, you will need an API key from OpenRouter:
+
+1. **Create an Account**: Visit [https://openrouter.ai/](https://openrouter.ai/) and click **Login** or **Sign Up**. You can authenticate using OAuth providers (Google, GitHub, MetaMask, etc.) or email.
+2. **Deposit Credits (Optional)**: While OpenRouter offers many free models (marked with `:free` in their model IDs), standard models require account credits. Go to your **Billing** dashboard to add funds as needed.
+3. **Generate an API Key**:
+   - Go to the **Keys** section under your user profile menu or navigate directly to [https://openrouter.ai/keys](https://openrouter.ai/keys).
+   - Click **Create Key**.
+   - Copy your key and save it securely (e.g., in a `.env` file). You will not be able to view it again.
 
 ---
 
