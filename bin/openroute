@@ -1,0 +1,66 @@
+#!/usr/bin/env php
+<?php
+
+// Check and load autoloader
+$autoloader = __DIR__ . '/../vendor/autoload.php';
+if (!file_exists($autoloader)) {
+    // If installed as a dependency in another project
+    $autoloader = __DIR__ . '/../../../autoload.php';
+}
+
+if (!file_exists($autoloader)) {
+    fwrite(STDERR, "Error: Autoloader not found. Please run 'composer install' first.\n");
+    exit(1);
+}
+
+require_once $autoloader;
+
+use OpenRouteAI\OpenRouter;
+
+// Parse CLI options
+$options = getopt("", ["key:", "ask:", "model:", "models"]);
+
+// Display usage if key is missing, or if both ask and models are missing
+if (!isset($options['key']) || (!isset($options['ask']) && !isset($options['models']))) {
+    echo "OpenRoute AI PHP SDK CLI Tool\n\n";
+    echo "Usage:\n";
+    echo "  php bin/openroute --key=YOUR_KEY --ask=\"Your question\"\n";
+    echo "  php bin/openroute --key=YOUR_KEY --model=\"model-name\" --ask=\"Your question\"\n";
+    echo "  php bin/openroute --key=YOUR_KEY --models\n\n";
+    echo "Options:\n";
+    echo "  --key     Your OpenRouter API Key (Required)\n";
+    echo "  --ask     The prompt/question to ask the AI (Required unless --models is present)\n";
+    echo "  --model   The specific model to use (Optional, defaults to meta-llama/llama-3.3-70b-instruct)\n";
+    echo "  --models  List all available models\n";
+    exit(1);
+}
+
+$apiKey = $options['key'];
+$model = isset($options['model']) ? $options['model'] : null;
+
+try {
+    if (isset($options['models'])) {
+        $ai = new OpenRouter($apiKey);
+        $result = $ai->models();
+        if (isset($result['data'])) {
+            echo "Available Models:\n";
+            foreach ($result['data'] as $m) {
+                $id = isset($m['id']) ? $m['id'] : 'Unknown ID';
+                $name = isset($m['name']) ? $m['name'] : 'Unknown Name';
+                echo "- {$name} ({$id})\n";
+            }
+        } else {
+            print_r($result);
+        }
+    } else {
+        $ask = $options['ask'];
+        $ai = new OpenRouter($apiKey);
+        echo "Query: {$ask}\n";
+        echo "Model: " . ($model ?: 'default') . "\n";
+        echo "Response:\n";
+        echo $ai->chat($ask, $model) . "\n";
+    }
+} catch (\Exception $e) {
+    fwrite(STDERR, "Error: " . $e->getMessage() . "\n");
+    exit(1);
+}
