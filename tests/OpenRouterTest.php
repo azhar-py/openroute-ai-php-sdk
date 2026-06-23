@@ -194,4 +194,44 @@ class OpenRouterTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $manager->get('non_existent');
     }
+
+    public function testConfigAgentAutoRegistration()
+    {
+        // Instantiating OpenRouter should autoload config/openroute.php from the repository root
+        $openRouter = new OpenRouter('fake_key');
+        
+        $manager = $openRouter->agents();
+        $this->assertCount(2, $manager->all());
+        
+        $summarizer = $manager->get('summarizer');
+        $this->assertEquals('summarizer', $summarizer->getName());
+        $this->assertEquals('meta-llama/llama-3.3-70b-instruct', $summarizer->getModel());
+        
+        $translator = $manager->get('translator');
+        $this->assertEquals('translator', $translator->getName());
+    }
+
+    public function testInstallerPublishConfig()
+    {
+        $tempDir = sys_get_temp_dir() . '/openroute_test_' . uniqid();
+        mkdir($tempDir, 0755, true);
+
+        // Run installer on temp directory
+        $success = \OpenRouteAI\Installer::publishConfig($tempDir);
+        $this->assertTrue($success);
+        $this->assertFileExists($tempDir . '/config/openroute.php');
+
+        // Check content contains api_key
+        $content = file_get_contents($tempDir . '/config/openroute.php');
+        $this->assertStringContainsString('api_key', $content);
+
+        // Try publishing again, should return false (already exists)
+        $secondSuccess = \OpenRouteAI\Installer::publishConfig($tempDir);
+        $this->assertFalse($secondSuccess);
+
+        // Clean up
+        unlink($tempDir . '/config/openroute.php');
+        rmdir($tempDir . '/config');
+        rmdir($tempDir);
+    }
 }

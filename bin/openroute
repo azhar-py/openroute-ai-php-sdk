@@ -20,22 +20,36 @@ use OpenRouteAI\OpenRouter;
 // Parse CLI options
 $options = getopt("", ["key:", "ask:", "model:", "models"]);
 
-// Display usage if key is missing, or if both ask and models are missing
-if (!isset($options['key']) || (!isset($options['ask']) && !isset($options['models']))) {
+// Support init command directly
+if (isset($argv[1]) && $argv[1] === 'init') {
+    echo "Publishing configuration file...\n";
+    $success = \OpenRouteAI\Installer::publishConfig();
+    if ($success) {
+        echo "Success: config/openroute.php was published successfully.\n";
+    } else {
+        echo "Note: config/openroute.php already exists or could not be created.\n";
+    }
+    exit(0);
+}
+
+// Display usage if both ask and models are missing
+if (!isset($options['ask']) && !isset($options['models'])) {
     echo "OpenRoute AI PHP SDK CLI Tool\n\n";
     echo "Usage:\n";
+    echo "  php bin/openroute init                      Initialize configuration folder & file\n";
     echo "  php bin/openroute --key=YOUR_KEY --ask=\"Your question\"\n";
     echo "  php bin/openroute --key=YOUR_KEY --model=\"model-name\" --ask=\"Your question\"\n";
     echo "  php bin/openroute --key=YOUR_KEY --models\n\n";
     echo "Options:\n";
-    echo "  --key     Your OpenRouter API Key (Required)\n";
+    echo "  --key     Your OpenRouter API Key (Optional if config/openroute.php exists)\n";
     echo "  --ask     The prompt/question to ask the AI (Required unless --models is present)\n";
     echo "  --model   The specific model to use (Optional, defaults to meta-llama/llama-3.3-70b-instruct)\n";
     echo "  --models  List all available models\n";
     exit(1);
 }
 
-$apiKey = $options['key'];
+// If key is not provided in option, let OpenRouter construct load it from config
+$apiKey = isset($options['key']) ? $options['key'] : null;
 $model = isset($options['model']) ? $options['model'] : null;
 
 try {

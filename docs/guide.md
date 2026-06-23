@@ -5,18 +5,20 @@ Welcome to the comprehensive guide for the **OpenRoute AI PHP SDK** (`azhar-py/o
 ---
 
 ## Table of Contents
-1. [Installation & Setup](#1-installation--setup)
-2. [Building and Orchestrating Multiple Agents](#2-building-and-orchestrating-multiple-agents)
-3. [Real-World Project Integration](#3-real-world-project-integration)
+1. [Installation & Config Publishing](#1-installation--config-publishing)
+2. [Configuration Auto-loading](#2-configuration-auto-loading)
+3. [Building and Orchestrating Multiple Agents](#3-building-and-orchestrating-multiple-agents)
+4. [Real-World Project Integration](#4-real-world-project-integration)
    - [Configuring Environment Variables](#configuring-environment-variables)
    - [Creating a Controller / Service Structure](#creating-a-controller--service-structure)
    - [Managing Context and Chat Session History](#managing-context-and-chat-session-history)
    - [Global Error & Exception Handling](#global-error--exception-handling)
-4. [CLI Integration in Production](#4-cli-integration-in-production)
+5. [Designing RAG (Retrieval-Augmented Generation) & Knowledge Search](#5-designing-rag-retrieval-augmented-generation--knowledge-search)
+6. [CLI Integration in Production](#6-cli-integration-in-production)
 
 ---
 
-## 1. Installation & Setup
+## 1. Installation & Config Publishing
 
 Before using the SDK, make sure your PHP environment (PHP >= 7.4) has Composer installed.
 
@@ -26,11 +28,23 @@ Run the following command to require the package in your project:
 composer require azhar-py/openroute-ai-php-sdk
 ```
 
-This will automatically download Guzzle and map the namespace `OpenRouteAI\` to your project's vendor directory.
+### Publishing the Configuration File
 
-### Quick Verification
+The SDK supports zero-setup instantiation by publishing a configuration file directly to your project's `config/` directory.
 
-Create an `index.php` at the root of your project:
+Run the initialization command from your project root:
+
+```bash
+php vendor/bin/openroute init
+```
+
+This creates a new folder/file under `config/openroute.php` in your project if it doesn't already exist.
+
+---
+
+## 2. Configuration Auto-loading
+
+Once published, you can instantiate the main `OpenRouter` wrapper without parameters. The SDK automatically searches for `config/openroute.php` to resolve variables:
 
 ```php
 <?php
@@ -39,13 +53,16 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 use OpenRouteAI\OpenRouter;
 
-// Retrieve your key securely
-$apiKey = getenv('OPENROUTER_API_KEY') ?: 'your_api_key';
-
-$ai = new OpenRouter($apiKey);
+// Auto-loads API Key, default model, and pre-configured agents from config/openroute.php
+$ai = new OpenRouter();
 
 try {
-    echo $ai->chat('Say: SDK is ready!');
+    // 1. Run a standard chat
+    echo $ai->chat('Hello AI');
+
+    // 2. Access auto-loaded agents directly from the manager
+    $summary = $ai->agents()->run('summarizer', 'Long article text here...');
+    echo "Summary: " . $summary;
 } catch (\Exception $e) {
     echo "Error: " . $e->getMessage();
 }
@@ -53,12 +70,29 @@ try {
 
 ---
 
-## 2. Building and Orchestrating Multiple Agents
+## 3. Building and Orchestrating Multiple Agents
 
 The SDK supports creating customized agents that have their own personality (system prompts) and models. Using the `AgentManager`, you can load, register, and run multiple agents in the same session.
 
-### Why use multiple agents?
-In production applications, a single system prompt is often insufficient. Separating responsibilities into dedicated agents (e.g., Code Reviewer, Content Writer, Translator) improves accuracy and reduces token consumption.
+### Declaring Agents in Config (`config/openroute.php`)
+
+You can define agents directly in the config file, which will be auto-loaded upon instantiation:
+
+```php
+return [
+    'api_key' => getenv('OPENROUTER_API_KEY'),
+    'agents' => [
+        'editor' => [
+            'model' => 'meta-llama/llama-3.3-70b-instruct',
+            'system_prompt' => 'You are an editor. Check the user input for spelling errors.'
+        ],
+        'translator' => [
+            'model' => 'google/gemini-2.5-flash',
+            'system_prompt' => 'Translate the input to French.'
+        ]
+    ]
+];
+```
 
 ### Code Example: Multi-Agent Workflow
 
@@ -70,44 +104,17 @@ Here is how to register and run multiple agents:
 require_once __DIR__ . '/vendor/autoload.php';
 
 use OpenRouteAI\OpenRouter;
-use OpenRouteAI\AgentManager;
 
-$ai = new OpenRouter(getenv('OPENROUTER_API_KEY'));
-$manager = new AgentManager();
+$ai = new OpenRouter(); // Auto-loads config
 
-// 1. Create a Translator Agent
-$translator = $ai->agent(
-    'translator',
-    'meta-llama/llama-3.3-70b-instruct',
-    'You are a professional translator. Translate all user input to Spanish. Output ONLY the translation.'
-);
-
-// 2. Create a Summary Agent
-$summarizer = $ai->agent(
-    'summarizer',
-    'meta-llama/llama-3.3-70b-instruct',
-    'You are an editor. Summarize the user input into a single concise sentence.'
-);
-
-// Register agents to the manager
-$manager->add($translator);
-$manager->add($summarizer);
-
-// 3. Coordinate the execution
-$article = "Composer is a tool for dependency management in PHP. It allows you to declare the libraries your project depends on and it will manage (install/update) them for you.";
-
-// Run Summarizer first
-$summary = $manager->run('summarizer', $article);
-echo "Summary: " . $summary . "\n\n";
-
-// Translate the summary
-$translation = $manager->run('translator', $summary);
-echo "Spanish Translation of Summary: " . $translation . "\n";
+// Run Translator
+$frenchTranslation = $ai->agents()->run('translator', 'Hello, how are you?');
+echo $frenchTranslation;
 ```
 
 ---
 
-## 3. Real-World Project Integration
+## 4. Real-World Project Integration
 
 When building a production-ready application (such as a Symfony, Laravel, or custom MVC project), you should decouple the SDK calls into dedicated services.
 
@@ -139,20 +146,11 @@ use OpenRouteAI\Exceptions\OpenRouterException;
 class AIService
 {
     private $openRouter;
-    private $defaultModel;
 
     public function __construct()
     {
-        $apiKey = getenv('OPENROUTER_API_KEY');
-        $this->defaultModel = getenv('OPENROUTER_DEFAULT_MODEL') ?: 'meta-llama/llama-3.3-70b-instruct';
-        $siteUrl = getenv('SITE_URL');
-        $appName = getenv('APP_NAME') ?: 'My Application';
-
-        if (!$apiKey) {
-            throw new \RuntimeException('OPENROUTER_API_KEY is not defined in the environment.');
-        }
-
-        $this->openRouter = new OpenRouter($apiKey, $this->defaultModel, $siteUrl, $appName);
+        // Instantiates automatically picking up environment and config settings
+        $this->openRouter = new OpenRouter();
     }
 
     public function getAiResponse(string $prompt): string
@@ -181,8 +179,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 use OpenRouteAI\OpenRouter;
 
-$apiKey = getenv('OPENROUTER_API_KEY');
-$ai = new OpenRouter($apiKey);
+$ai = new OpenRouter();
 
 // Initialize chat history in session
 if (!isset($_SESSION['chat_history'])) {
@@ -251,7 +248,44 @@ try {
 
 ---
 
-## 4. CLI Integration in Production
+## 5. Designing RAG (Retrieval-Augmented Generation) & Knowledge Search
+
+Retrieval-Augmented Generation (RAG) grounds LLM outputs in verified external knowledge. Here is how you construct a search-augmented pipeline:
+
+```php
+<?php
+
+require_once __DIR__ . '/vendor/autoload.php';
+
+use OpenRouteAI\OpenRouter;
+
+// 1. Instantiation
+$ai = new OpenRouter();
+
+// 2. Perform your document search (vector DB, ElasticSearch, or web search)
+$userQuery = "What is the release date of the package?";
+$retrievedDocumentText = "The OpenRoute AI PHP SDK package was tagged with release v1.0.0 on June 23, 2026.";
+
+// 3. Formulate RAG context payload
+$messages = [
+    [
+        'role' => 'system',
+        'content' => "You are a factual assistant. Answer queries using the following context only:\n\n" . $retrievedDocumentText
+    ],
+    [
+        'role' => 'user',
+        'content' => $userQuery
+    ]
+];
+
+// 4. Generate answer
+$response = $ai->messages($messages);
+echo $response; // "The package was tagged with release v1.0.0 on June 23, 2026."
+```
+
+---
+
+## 6. CLI Integration in Production
 
 You can call the SDK command-line interface in server cron jobs or background bash processes.
 
@@ -259,5 +293,5 @@ For example, to run automated nightly translations, checkups, or content generat
 
 ```bash
 # Run CLI script as a cron task redirecting output to a log file
-0 2 * * * php /var/www/project/bin/openroute --key="sk-or-v1-..." --ask="Generate site analytics summary report" >> /var/log/ai_nightly.log 2>&1
+0 2 * * * php /var/www/project/bin/openroute --ask="Generate site analytics summary report" >> /var/log/ai_nightly.log 2>&1
 ```

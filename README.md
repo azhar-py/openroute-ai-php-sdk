@@ -11,16 +11,6 @@ A clean, light-weight, and highly reusable PHP SDK for the OpenRouter AI API. Th
 
 ---
 
-## Key Features
-
-- **Simple & Raw wrappers**: Access pre-formatted text outputs immediately or access full raw response headers and payloads (including token usage).
-- **Custom Agent Framework**: Instantly create individual agents with custom system instructions, models, and custom behaviors.
-- **Agent Orchestrator (`AgentManager`)**: Easily register, manage, and execute multiple custom agents in your workflow.
-- **Robust Exception Mapping**: Captures HTTP status codes and wraps API errors into clear `OpenRouterException` instances.
-- **CLI Tool Support**: Integrated shell console helper to test, ask, or list models from your terminal.
-
----
-
 ## Getting Started with OpenRouter
 
 To use this SDK, you will need an API key from OpenRouter:
@@ -34,44 +24,74 @@ To use this SDK, you will need an API key from OpenRouter:
 
 ---
 
-## Installation
+## Key Features
 
+- **Configuration File Publishing**: Generate a unified settings file in your project (`config/openroute.php`) for seamless initialization.
+- **Zero-Setup Instantiation**: Automatically auto-loads configurations and pre-defined agents from your project's settings.
+- **Simple & Raw wrappers**: Access pre-formatted text outputs immediately or access full raw response headers and payloads (including token usage).
+- **Custom Agent Framework**: Instantly create individual agents with custom system instructions, models, and custom behaviors.
+- **Agent Orchestrator (`AgentManager`)**: Easily register, manage, and execute multiple custom agents in your workflow.
+- **Robust Exception Mapping**: Captures HTTP status codes and wraps API errors into clear `OpenRouterException` instances.
+- **CLI Tool Support**: Integrated shell console helper to initialize configurations, test prompts, or list models from your terminal.
+
+---
+
+## Installation & Setup
+
+### 1. Require the Package via Composer
 To install the SDK, run the following command in your terminal:
 
 ```bash
 composer require azhar-py/openroute-ai-php-sdk
 ```
 
-Make sure your PHP file loads the Composer autoloader to run the classes:
+### 2. Publish the Configuration File
+Generate the configuration file inside your project root to manage settings:
 
-```php
-require_once __DIR__ . '/vendor/autoload.php';
+```bash
+php vendor/bin/openroute init
 ```
+
+This creates a file under `config/openroute.php` preconfigured to load settings from environment variables.
 
 ---
 
 ## Detailed Setup & Usage
 
 ### 1. Basic Text Completion
-To run a quick single-turn chat using the default model (`meta-llama/llama-3.3-70b-instruct`):
+To run a quick single-turn chat using the default model:
 
 ```php
+require_once __DIR__ . '/vendor/autoload.php';
+
 use OpenRouteAI\OpenRouter;
 
-// Instantiates client
-$ai = new OpenRouter('YOUR_OPENROUTER_API_KEY');
+// Instantiates client - automatically loads key and settings from config/openroute.php
+$ai = new OpenRouter();
 
 // Sends prompt and prints text directly
 echo $ai->chat('Explain machine learning in one sentence.');
 ```
 
-### 2. Multi-turn Dialogues & System Instructions
+### 2. Custom Model Overrides
+You can specify a different model or customize settings inline:
+
+```php
+use OpenRouteAI\OpenRouter;
+
+$ai = new OpenRouter();
+
+// Run a chat using a specific model override
+echo $ai->chat('Explain PHP autoloading', 'deepseek/deepseek-chat');
+```
+
+### 3. Multi-turn Dialogues & System Instructions
 Use the `messages` method to pass full system prompts or carry context across multiple turns:
 
 ```php
 use OpenRouteAI\OpenRouter;
 
-$ai = new OpenRouter('YOUR_OPENROUTER_API_KEY');
+$ai = new OpenRouter();
 
 $conversation = [
     ['role' => 'system', 'content' => 'You speak like a medieval knight.'],
@@ -82,33 +102,49 @@ $reply = $ai->messages($conversation);
 echo $reply;
 ```
 
-### 3. Setting Up Custom Site URL & App Title
-OpenRouter displays your app name on their dashboard and rankings. You can set this in the constructor:
-
-```php
-use OpenRouteAI\OpenRouter;
-
-$ai = new OpenRouter(
-    'YOUR_OPENROUTER_API_KEY',
-    'meta-llama/llama-3.3-70b-instruct', // Default model
-    'https://mywebsite.com',              // Site HTTP-Referer Header (Optional)
-    'My Custom AI Platform'              // X-Title Header (Optional)
-);
-```
-
 ---
 
 ## Building and Orchestrating Multiple Agents
 
 The SDK features a dedicated `Agent` and `AgentManager` class structure allowing you to run complex multi-agent setups.
 
-### Single Custom Agent
-You can build a standalone agent configured with a specific system role and model:
+### Auto-Loaded Config Agents
+You can define preconfigured agents in `config/openroute.php`:
+
+```php
+return [
+    'agents' => [
+        'summarizer' => [
+            'model' => 'meta-llama/llama-3.3-70b-instruct',
+            'system_prompt' => 'You are an editor. Summarize the user input into a single concise sentence.',
+        ],
+        'translator' => [
+            'model' => 'meta-llama/llama-3.3-70b-instruct',
+            'system_prompt' => 'Translate all user input to Spanish.',
+        ]
+    ]
+];
+```
+
+You can then run them directly without any extra code setup:
 
 ```php
 use OpenRouteAI\OpenRouter;
 
-$ai = new OpenRouter('YOUR_OPENROUTER_API_KEY');
+$ai = new OpenRouter();
+
+// Run the summarizer agent defined in config
+$summary = $ai->agents()->run('summarizer', 'Long text to summarize...');
+echo $summary;
+```
+
+### Programmatic Custom Agents
+You can also build standalone agents dynamically:
+
+```php
+use OpenRouteAI\OpenRouter;
+
+$ai = new OpenRouter();
 
 $expertAgent = $ai->agent(
     'php_guru', 
@@ -119,50 +155,45 @@ $expertAgent = $ai->agent(
 echo $expertAgent->run('What is the strategy pattern?');
 ```
 
-### Coordinating Multiple Agents with `AgentManager`
-In real projects, you might need different agents to perform specialized tasks (e.g., one agent translates, another summarizes):
+---
+
+## RAG (Retrieval-Augmented Generation) & Knowledge Search
+
+You can implement grounded RAG search flows by retrieving document context and injecting it into the prompts:
 
 ```php
 use OpenRouteAI\OpenRouter;
-use OpenRouteAI\AgentManager;
 
-$ai = new OpenRouter('YOUR_OPENROUTER_API_KEY');
-$manager = new AgentManager();
+$ai = new OpenRouter();
 
-// Register a technical translator
-$manager->add($ai->agent(
-    'spanish_translator', 
-    'meta-llama/llama-3.3-70b-instruct',
-    'Translate the input text into Spanish.'
-));
+// 1. Retrieve knowledge text from database/search
+$knowledgeText = "The OpenRoute AI PHP SDK package was tagged with release v1.0.0 on June 23, 2026.";
 
-// Register a text refiner
-$manager->add($ai->agent(
-    'professional_polisher', 
-    'google/gemini-2.5-flash',
-    'Make the input text sound professional and business-friendly.'
-));
+// 2. Format system instruction with context
+$messages = [
+    [
+        'role' => 'system',
+        'content' => "Use the following context to answer query:\n\n" . $knowledgeText
+    ],
+    [
+        'role' => 'user',
+        'content' => "What is the release date of the package?"
+    ]
+];
 
-// Run the polisher on user input
-$polishedText = $manager->run('professional_polisher', 'hey client, the code is done.');
-
-// Now run the translator on the polished text
-$finalTranslation = $manager->run('spanish_translator', $polishedText);
-
-echo $finalTranslation;
+// 3. Generate answer
+echo $ai->messages($messages);
 ```
-
-If you attempt to call `get()` or `run()` on an agent name that has not been registered, an `InvalidArgumentException` will be thrown.
 
 ---
 
 ## CLI Console Helper
 
-You can query models or run completions straight from your console using the `bin/openroute` script:
+You can query models, run completions, or publish configs straight from your terminal:
 
 ```bash
-# Get usage guide
-php bin/openroute
+# Publish config/openroute.php template
+php bin/openroute init
 
 # Ask a prompt using the default model
 php bin/openroute --key=YOUR_API_KEY --ask="Hello AI"
@@ -185,7 +216,7 @@ use OpenRouteAI\OpenRouter;
 use OpenRouteAI\Exceptions\OpenRouterException;
 
 try {
-    $ai = new OpenRouter('INVALID_API_KEY');
+    $ai = new OpenRouter();
     $ai->chat('Hello');
 } catch (OpenRouterException $e) {
     echo "Caught API Exception: " . $e->getMessage() . "\n";
@@ -197,13 +228,7 @@ try {
 
 ## Full Guides & Documentation
 
-For a detailed integration guide including:
-- Decoupling the SDK into service controllers
-- Managing stateful chat session history arrays in web apps
-- Structuring global rate limiting and API exceptions
-- Automated cron job shell integrations
-
-Check out the [Full Integration & Usage Guide](docs/guide.md).
+For a detailed integration guide including MVC service structures, stateful chat history in web sessions, and global rate limiting wrappers, check out the [Full Integration & Usage Guide](docs/guide.md).
 
 ---
 
